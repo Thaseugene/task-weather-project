@@ -8,22 +8,20 @@ import org.apache.logging.log4j.Logger;
 import org.hibernate.HibernateException;
 import org.hibernate.Session;
 import org.hibernate.SessionFactory;
-import org.hibernate.Transaction;
 import org.hibernate.query.Query;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
 import java.util.List;
-
 @Repository
+@Transactional
 public class WeatherRepositoryImpl implements WeatherRepository {
 
-    public static final String FUNCTION_VARIABLE = "date";
-    public static final String FIELD_NAME = "localTime";
-
     private static final Logger LOGGER = LogManager.getRootLogger();
-
+    public static final String DATE_FROM = "dateFrom";
+    public static final String DATE_TO = "dateTo";
 
     private final SessionFactory sessionFactory;
 
@@ -34,19 +32,10 @@ public class WeatherRepositoryImpl implements WeatherRepository {
 
     @Override
     public void saveWeatherData(WeatherDetails weatherDetails) throws RepositoryException {
-
-        Transaction transaction = null;
-
-        try (Session session = sessionFactory.openSession()) {
-
-            transaction = session.beginTransaction();
+        try {
+            Session session = sessionFactory.getCurrentSession();
             session.save(weatherDetails);
-            transaction.commit();
-
         } catch (HibernateException e) {
-            if (transaction != null) {
-                transaction.rollback();
-            }
             LOGGER.warn("Problems with adding info to data or another exception occurred", e);
             throw new RepositoryException("Failed to add weather data to database", e);
         }
@@ -56,14 +45,12 @@ public class WeatherRepositoryImpl implements WeatherRepository {
 
     @Override
     public List<WeatherDetails> takeWeatherDetailsByRange(Date dateFrom, Date dateTo) throws RepositoryException {
-        try (Session session = sessionFactory.openSession()) {
-
+        try {
+            Session session = sessionFactory.getCurrentSession();
             Query<WeatherDetails> query = session.createQuery(FIND_WEATHER_DETAILS_QUERY, WeatherDetails.class);
-            query.setParameter("dateFrom", dateFrom);
-            query.setParameter("dateTo", dateTo);
-
+            query.setParameter(DATE_FROM, dateFrom);
+            query.setParameter(DATE_TO, dateTo);
             return query.getResultList();
-
         } catch (HibernateException e) {
             LOGGER.warn("Problems with getting info to data or another exception occurred", e);
             throw new RepositoryException("Failed to get data from DB or other problems are presented", e);
@@ -71,9 +58,11 @@ public class WeatherRepositoryImpl implements WeatherRepository {
     }
 
     public static final String GET_ACTUAL_QUERY = "FROM WeatherDetails ORDER BY localTime DESC";
+
     @Override
     public WeatherDetails takeLastWeatherResult() throws RepositoryException {
-        try (Session session = sessionFactory.openSession()) {
+        try {
+            Session session = sessionFactory.getCurrentSession();
             Query<WeatherDetails> query = session.createQuery(GET_ACTUAL_QUERY, WeatherDetails.class);
             query.setMaxResults(1);
             return query.getSingleResult();
@@ -82,5 +71,4 @@ public class WeatherRepositoryImpl implements WeatherRepository {
             throw new RepositoryException("Failed to get actual weather data from DB or other problems are presented", e);
         }
     }
-
 }
